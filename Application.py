@@ -11,7 +11,7 @@ import operator
 from string import ascii_uppercase
 
 import tkinter as tk
-
+import pyttsx3
 from PIL import ImageTk, Image
 from hunspell import Hunspell
 import enchant
@@ -26,7 +26,7 @@ os.environ["THEANO_FLAGS"] = "device=cuda, assert_no_cpu_op=True"
 class Application:
 
     def __init__(self):
-
+        self.engine = pyttsx3.init()
         self.hs = Hunspell('en_US')
         self.vs = cv2.VideoCapture(1)
         self.current_image = None
@@ -38,25 +38,7 @@ class Application:
         self.loaded_model = model_from_json(self.model_json)
         self.loaded_model.load_weights("Models\model_new.h5")
 
-        self.json_file_dru = open("Models\model-bw_dru.json" , "r")
-        self.model_json_dru = self.json_file_dru.read()
-        self.json_file_dru.close()
-
-        self.loaded_model_dru = model_from_json(self.model_json_dru)
-        self.loaded_model_dru.load_weights("Models\model-bw_dru.h5")
-        self.json_file_tkdi = open("Models\model-bw_tkdi.json" , "r")
-        self.model_json_tkdi = self.json_file_tkdi.read()
-        self.json_file_tkdi.close()
-
-        self.loaded_model_tkdi = model_from_json(self.model_json_tkdi)
-        self.loaded_model_tkdi.load_weights("Models\model-bw_tkdi.h5")
-        self.json_file_smn = open("Models\model-bw_smn.json" , "r")
-        self.model_json_smn = self.json_file_smn.read()
-        self.json_file_smn.close()
-
-        self.loaded_model_smn = model_from_json(self.model_json_smn)
-        self.loaded_model_smn.load_weights("Models\model-bw_smn.h5")
-
+   
         self.ct = {}
         self.ct['blank'] = 0
         self.blank_flag = 0
@@ -65,63 +47,87 @@ class Application:
           self.ct[i] = 0
         
         print("Loaded model from disk")
-
         self.root = tk.Tk()
-        self.root.title("Sign Language To Text Conversion")
-        self.root.protocol('WM_DELETE_WINDOW', self.destructor)
-        self.root.geometry("900x900")
+        self.root.title("Sign Language to Text Conversion")
+        self.root.geometry("1000x900")
 
-        self.panel = tk.Label(self.root)
-        self.panel.place(x = 100, y = 10, width = 580, height = 580)
-        
-        self.panel2 = tk.Label(self.root) # initialize image panel
-        self.panel2.place(x = 400, y = 65, width = 275, height = 275)
+        # Title label
+        self.title_label = tk.Label(self.root, text="Sign Language to Text Conversion", font=("Helvetica", 36, "bold"))
+        self.title_label.pack(pady=20)
 
-        self.T = tk.Label(self.root)
-        self.T.place(x = 60, y = 5)
-        self.T.config(text = "Sign Language To Text Conversion", font = ("Courier", 30, "bold"))
+        # Panel for main camera feed
+        self.camera_panel = tk.Label(self.root)
+        self.camera_panel.pack(pady=10)
 
-        self.panel3 = tk.Label(self.root) # Current Symbol
-        self.panel3.place(x = 500, y = 540)
+        # Current symbol label and value
+        self.symbol_frame = tk.Frame(self.root)
+        self.symbol_frame.pack(pady=10)
 
-        self.T1 = tk.Label(self.root)
-        self.T1.place(x = 10, y = 540)
-        self.T1.config(text = "Character :", font = ("Courier", 30, "bold"))
+        self.symbol_label = tk.Label(self.symbol_frame, text="Character:", font=("Helvetica", 24))
+        self.symbol_label.grid(row=0, column=0, padx=10)
 
-        self.panel4 = tk.Label(self.root) # Word
-        self.panel4.place(x = 220, y = 595)
+        self.symbol_value = tk.Label(self.symbol_frame, text="_", font=("Helvetica", 24, "bold"))
+        self.symbol_value.grid(row=0, column=1, padx=10)
+    
+        # Word label and value
+        self.word_frame = tk.Frame(self.root)
+        self.word_frame.pack(pady=10)
 
-        self.T2 = tk.Label(self.root)
-        self.T2.place(x = 10,y = 595)
-        self.T2.config(text = "Word :", font = ("Courier", 30, "bold"))
+        self.word_label = tk.Label(self.word_frame, text="Word:", font=("Helvetica", 24))
+        self.word_label.grid(row=0, column=0, padx=10)
 
-        self.panel5 = tk.Label(self.root) # Sentence
-        self.panel5.place(x = 350, y = 645)
+        self.word_value = tk.Label(self.word_frame, text="_", font=("Helvetica", 24, "bold"))
+        self.word_value.grid(row=0, column=1, padx=10)
+        # self.delete_button = tk.Button(self.word_frame, text="Delete Char", font=("Helvetica", 15),bg="#ff4d4d", fg="white", activebackground="#ff1a1a", activeforeground="white",
+        #                                relief="solid", borderwidth=2, command=self.delete_last_letter )
+        # self.delete_button.grid(row=0, column=5, padx=10, sticky='w')
 
-        self.T3 = tk.Label(self.root)
-        self.T3.place(x = 10, y = 645)
-        self.T3.config(text = "Sentence :",font = ("Courier", 30, "bold"))
+        # Sentence label and value
+        self.sentence_frame = tk.Frame(self.root)
+        self.sentence_frame.pack(pady=10)
 
-        self.T4 = tk.Label(self.root)
-        self.T4.place(x = 250, y = 690)
-        self.T4.config(text = "Suggestions :", fg = "red", font = ("Courier", 30, "bold"))
+        self.sentence_label = tk.Label(self.sentence_frame, text="Sentence:", font=("Helvetica", 24))
+        self.sentence_label.grid(row=0, column=0, padx=10)
 
-        self.bt1 = tk.Button(self.root, command = self.action1, height = 0, width = 0)
-        self.bt1.place(x = 26, y = 745)
+        self.sentence_value = tk.Label(self.sentence_frame, text="_", font=("Helvetica", 24, "bold"))
+        self.sentence_value.grid(row=0, column=1, padx=10)
 
-        self.bt2 = tk.Button(self.root, command = self.action2, height = 0, width = 0)
-        self.bt2.place(x = 325, y = 745)
+        # Suggestions label
+        self.suggestions_label = tk.Label(self.root, text="Suggestions:", fg="red", font=("Helvetica", 28, "bold"))
+        self.suggestions_label.pack(pady=20)
 
-        self.bt3 = tk.Button(self.root, command = self.action3, height = 0, width = 0)
-        self.bt3.place(x = 625, y = 745)
+        # Buttons for suggestions
+        self.suggestions_frame = tk.Frame(self.root)
+        self.suggestions_frame.pack(pady=10)
 
+        self.suggestion_btn1 = tk.Button(self.suggestions_frame, text="Suggestion 1", command=self.action1, font=("Helvetica", 20))
+        self.suggestion_btn1.grid(row=0, column=0, padx=10)
 
+        self.suggestion_btn2 = tk.Button(self.suggestions_frame, text="Suggestion 2", command=self.action2, font=("Helvetica", 20))
+        self.suggestion_btn2.grid(row=0, column=1, padx=10)
+
+        self.suggestion_btn3 = tk.Button(self.suggestions_frame, text="Suggestion 3", command=self.action3, font=("Helvetica", 20))
+        self.suggestion_btn3.grid(row=0, column=2, padx=10)
+
+        # self.delete_frame = tk.Frame(self.root)
+        # self.delete_frame.pack(pady=10)
+        # self.delete_button = tk.Button(self.delete_frame, text="Delete Char", font=("Helvetica", 15),bg="#ff4d4d", fg="white", activebackground="#ff1a1a", activeforeground="white",
+        #                                relief="solid", borderwidth=2, command=self.delete_last_letter )
+        # self.delete_button.grid(row=0, column=0, padx=10)
+
+        self.root.protocol("WM_DELETE_WINDOW", self.destructor)
+     
         self.str = ""
         self.word = " "
         self.current_symbol = "Empty"
         self.photo = "Empty"
         self.video_loop()
 
+    def delete_last_letter(self):
+        # Delete the last letter in the current word
+        if len(self.word) > 0:
+            self.word = self.word[:-1]
+            self.word_value_label.config(text=self.word)
 
     def video_loop(self):
         ok, frame = self.vs.read()
@@ -140,8 +146,8 @@ class Application:
             self.current_image = Image.fromarray(cv2image)
             imgtk = ImageTk.PhotoImage(image = self.current_image)
 
-            self.panel.imgtk = imgtk
-            self.panel.config(image = imgtk)
+            self.camera_panel.imgtk = imgtk
+            self.camera_panel.config(image = imgtk)
 
             cv2image = cv2image[y1 : y2, x1 : x2]
 
@@ -164,40 +170,40 @@ class Application:
 
             imgtk = ImageTk.PhotoImage(image = self.current_image2)
 
-            self.panel2.imgtk = imgtk
-            self.panel2.config(image = imgtk)
+            self.camera_panel.imgtk = imgtk
+            self.camera_panel.config(image = imgtk)
 
-            self.panel3.config(text = self.current_symbol, font = ("Courier", 30))
+            self.symbol_value.config(text = self.current_symbol, font = ("Courier", 30))
 
-            self.panel4.config(text = self.word, font = ("Courier", 30))
+            self.word_value.config(text = self.word, font = ("Courier", 30))
 
-            self.panel5.config(text = self.str,font = ("Courier", 30))
+            self.sentence_value.config(text = self.str,font = ("Courier", 30))
 
             predicts = self.hs.suggest(self.word)
             
             if(len(predicts) > 1):
 
-                self.bt1.config(text = predicts[0], font = ("Courier", 20))
+                self.suggestion_btn1.config(text = predicts[0], font = ("Courier", 20))
 
             else:
 
-                self.bt1.config(text = "")
+                self.suggestion_btn1.config(text = "")
 
             if(len(predicts) > 2):
 
-                self.bt2.config(text = predicts[1], font = ("Courier", 20))
+                self.suggestion_btn2.config(text = predicts[1], font = ("Courier", 20))
 
             else:
 
-                self.bt2.config(text = "")
+                self.suggestion_btn2.config(text = "")
 
             if(len(predicts) > 3):
 
-                self.bt3.config(text = predicts[2], font = ("Courier", 20))
+                self.suggestion_btn3.config(text = predicts[2], font = ("Courier", 20))
 
             else:
 
-                self.bt3.config(text = "")
+                self.suggestion_btn3.config(text = "")
 
 
         self.root.after(5, self.video_loop)
@@ -206,17 +212,7 @@ class Application:
   
         # Make predictions
         result = self.loaded_model.predict(test_image)
-
-        # test_image = cv2.resize(test_image, (128, 128))
-
-        # result = self.loaded_model.predict(test_image.reshape(1, 128, 128, 1))
-
-
-        # result_dru = self.loaded_model_dru.predict(test_image.reshape(1 , 128 , 128 , 1))
-
-        # result_tkdi = self.loaded_model_tkdi.predict(test_image.reshape(1 , 128 , 128 , 1))
-
-        # result_smn = self.loaded_model_smn.predict(test_image.reshape(1 , 128 , 128 , 1))
+    
 
         prediction = {}
         
@@ -236,50 +232,6 @@ class Application:
         prediction = sorted(prediction.items(), key = operator.itemgetter(1), reverse = True)
 
         self.current_symbol = prediction[0][0]
-
-
-        #LAYER 2
-
-        # if(self.current_symbol == 'D' or self.current_symbol == 'R' or self.current_symbol == 'U'):
-        #     prediction = {}
-        #     prediction['D'] = result_dru[0][0]
-        #     prediction['R'] = result_dru[0][1]
-        #     prediction['U'] = result_dru[0][2]
-
-        #     prediction = sorted(prediction.items(), key = operator.itemgetter(1), reverse = True)
-
-        #     self.current_symbol = prediction[0][0]
-
-        # if(self.current_symbol == 'D' or self.current_symbol == 'I' or self.current_symbol == 'K' or self.current_symbol == 'T'):
-
-        #     prediction = {}
-
-        #     prediction['D'] = result_tkdi[0][0]
-        #     prediction['I'] = result_tkdi[0][1]
-        #     prediction['K'] = result_tkdi[0][2]
-        #     prediction['T'] = result_tkdi[0][3]
-
-        #     prediction = sorted(prediction.items(), key = operator.itemgetter(1), reverse = True)
-
-        #     self.current_symbol = prediction[0][0]
-
-        # if(self.current_symbol == 'M' or self.current_symbol == 'N' or self.current_symbol == 'S'):
-
-            # prediction1 = {}
-
-            # prediction1['M'] = result_smn[0][0]
-            # prediction1['N'] = result_smn[0][1]
-            # prediction1['S'] = result_smn[0][2]
-
-            # prediction1 = sorted(prediction1.items(), key = operator.itemgetter(1), reverse = True)
-
-            # if(prediction1[0][0] == 'S'):
-
-            #     self.current_symbol = prediction1[0][0]
-
-            # else:
-
-            #     self.current_symbol = prediction[0][0]
         
         if(self.current_symbol == 'blank'):
 
@@ -288,7 +240,7 @@ class Application:
 
         self.ct[self.current_symbol] += 1
 
-        if(self.ct[self.current_symbol] > 40):
+        if(self.ct[self.current_symbol] > 60):
 
             for i in ascii_uppercase:
                 if i == self.current_symbol:
@@ -318,9 +270,9 @@ class Application:
 
                     if len(self.str) > 0:
                         self.str += " "
-
+                        
                     self.str += self.word
-
+                    self.speak_word(self.word)
                     self.word = ""
 
             else:
@@ -331,9 +283,9 @@ class Application:
                 self.blank_flag = 0
 
                 self.word += self.current_symbol
+                self.speak_word(self.current_symbol)
 
-   
-
+    
     def action1(self):
 
         predicts = self.hs.suggest(self.word)
@@ -345,6 +297,7 @@ class Application:
             self.str += " "
 
             self.str += predicts[0]
+            self.speak_word(predicts[0])
 
     def action2(self):
 
@@ -354,7 +307,7 @@ class Application:
             self.word = ""
             self.str += " "
             self.str += predicts[1]
-
+            self.speak_word(predicts[1])
     def action3(self):
 
         predicts = self.hs.suggest(self.word)
@@ -363,7 +316,7 @@ class Application:
             self.word = ""
             self.str += " "
             self.str += predicts[2]
-
+            self.speak_word(predicts[2])
     def action4(self):
 
         predicts = self.hs.suggest(self.word)
@@ -372,7 +325,7 @@ class Application:
             self.word = ""
             self.str += " "
             self.str += predicts[3]
-
+            self.speak_word(predicts[3])
     def action5(self):
 
         predicts = self.hs.suggest(self.word)
@@ -381,7 +334,13 @@ class Application:
             self.word = ""
             self.str += " "
             self.str += predicts[4]
-            
+            self.speak_word(predicts[4])    
+
+    def speak_word(self, word):
+        """Speak the given word using pyttsx3."""
+        self.engine.say(word)
+        self.engine.runAndWait()
+
     def destructor(self):
 
         print("Closing Application...")
